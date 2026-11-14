@@ -1,0 +1,530 @@
+--[[
+    Multi-Target Carry Spam GUI
+    - Draggable on Mobile/PC
+    - Select multiple players from dropdown
+    - Spams carry on selected players every 0.8 seconds
+    - Custom carry message: "Mobile Screen Hider V3 Tfk Hub"
+]]
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Get the Carry Remote (RequestPrompt)
+local function getCarryRemote()
+    local RequestPrompt = ReplicatedStorage:FindFirstChild("RequestPrompt")
+    if not RequestPrompt then
+        -- Try to find it elsewhere
+        RequestPrompt = ReplicatedStorage:FindFirstChild("Request")
+    end
+    return RequestPrompt
+end
+
+-- Custom carry message
+local CARRY_MESSAGE = "Mobile Screen Hider V3 Tfk Hub"
+
+-- Variables
+local selectedTargets = {} -- Table of selected player names
+local carrySpamActive = false
+local carrySpamLoop = nil
+local CarryRemote = getCarryRemote()
+
+-- GUI Elements
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MultiTargetCarrySpam"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Main Frame (Draggable)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 300, 0, 420)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -210)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+mainFrame.BackgroundTransparency = 0
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- Corner rounding
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(80, 60, 150)
+stroke.Thickness = 1.5
+stroke.Parent = mainFrame
+
+-- Title Bar (For dragging)
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 45)
+titleBar.BackgroundColor3 = Color3.fromRGB(80, 60, 150)
+titleBar.BackgroundTransparency = 0
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = titleBar
+
+-- Title text
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, 0, 1, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "📦 TFK Hub | Carry Spam"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextSize = 15
+titleText.Font = Enum.Font.GothamBold
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Position = UDim2.new(0, 12, 0, 0)
+titleText.Parent = titleBar
+
+-- Status indicator
+local statusIndicator = Instance.new("Frame")
+statusIndicator.Size = UDim2.new(0, 10, 0, 10)
+statusIndicator.Position = UDim2.new(1, -22, 0.5, -5)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+statusIndicator.BorderSizePixel = 0
+statusIndicator.Parent = titleBar
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(1, 0)
+statusCorner.Parent = statusIndicator
+
+-- Close button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 35, 1, 0)
+closeBtn.Position = UDim2.new(1, -35, 0, 0)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 18
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = titleBar
+
+closeBtn.MouseButton1Click:Connect(function()
+    screenGui.Enabled = not screenGui.Enabled
+end)
+
+-- Minimize button
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 35, 1, 0)
+minimizeBtn.Position = UDim2.new(1, -70, 0, 0)
+minimizeBtn.BackgroundTransparency = 1
+minimizeBtn.Text = "−"
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.TextSize = 20
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.Parent = titleBar
+
+-- Drag functionality (Works on Mobile!)
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+local function startDrag(input)
+    dragging = true
+    dragStart = input.Position
+    startPos = mainFrame.Position
+end
+
+local function onDrag(input)
+    if dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale, 
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale, 
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end
+
+local function stopDrag()
+    dragging = false
+end
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        startDrag(input)
+    end
+end)
+
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        stopDrag()
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                     input.UserInputType == Enum.UserInputType.Touch) then
+        onDrag(input)
+    end
+end)
+
+-- Content Frame
+local contentFrame = Instance.new("Frame")
+contentFrame.Name = "Content"
+contentFrame.Size = UDim2.new(1, -20, 1, -70)
+contentFrame.Position = UDim2.new(0, 10, 0, 55)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+-- Message Display Frame
+local messageFrame = Instance.new("Frame")
+messageFrame.Size = UDim2.new(1, 0, 0, 40)
+messageFrame.Position = UDim2.new(0, 0, 0, 0)
+messageFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+messageFrame.BackgroundTransparency = 0
+messageFrame.BorderSizePixel = 0
+messageFrame.Parent = contentFrame
+
+local messageCorner = Instance.new("UICorner")
+messageCorner.CornerRadius = UDim.new(0, 8)
+messageCorner.Parent = messageFrame
+
+local messageLabel = Instance.new("TextLabel")
+messageLabel.Size = UDim2.new(1, -10, 1, 0)
+messageLabel.Position = UDim2.new(0, 5, 0, 0)
+messageLabel.BackgroundTransparency = 1
+messageLabel.Text = "📱 " .. CARRY_MESSAGE
+messageLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+messageLabel.TextSize = 11
+messageLabel.Font = Enum.Font.Gotham
+messageLabel.TextWrapped = true
+messageLabel.Parent = messageFrame
+
+-- Scroll Frame for player list
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, 0, 1, -55)
+scrollFrame.Position = UDim2.new(0, 0, 0, 50)
+scrollFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+scrollFrame.BackgroundTransparency = 0
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 4
+scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollFrame.Parent = contentFrame
+
+local scrollCorner = Instance.new("UICorner")
+scrollCorner.CornerRadius = UDim.new(0, 8)
+scrollCorner.Parent = scrollFrame
+
+-- Player list container
+local playerListFrame = Instance.new("UIListLayout")
+playerListFrame.Parent = scrollFrame
+playerListFrame.SortOrder = Enum.SortOrder.Name
+playerListFrame.Padding = UDim.new(0, 5)
+
+-- Toggle Carry Spam Button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(1, 0, 0, 50)
+toggleButton.Position = UDim2.new(0, 0, 1, -55)
+toggleButton.BackgroundColor3 = Color3.fromRGB(80, 60, 150)
+toggleButton.BackgroundTransparency = 0
+toggleButton.Text = "📦 Carry Spam: OFF"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.TextSize = 14
+toggleButton.Font = Enum.Font.GothamSemibold
+toggleButton.Parent = contentFrame
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleButton
+
+-- Selected count label
+local countLabel = Instance.new("TextLabel")
+countLabel.Size = UDim2.new(1, 0, 0, 20)
+countLabel.Position = UDim2.new(0, 0, 0, -25)
+countLabel.BackgroundTransparency = 1
+countLabel.Text = "Selected: 0 players"
+countLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+countLabel.TextSize = 12
+countLabel.Font = Enum.Font.Gotham
+countLabel.Parent = contentFrame
+
+-- Interval label
+local intervalLabel = Instance.new("TextLabel")
+intervalLabel.Size = UDim2.new(1, 0, 0, 18)
+intervalLabel.Position = UDim2.new(0, 0, 1, -78)
+intervalLabel.BackgroundTransparency = 1
+intervalLabel.Text = "⏱️ Spam interval: 0.8 seconds"
+intervalLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
+intervalLabel.TextSize = 10
+intervalLabel.Font = Enum.Font.Gotham
+intervalLabel.Parent = contentFrame
+
+-- Function to update player list
+local function updatePlayerList()
+    -- Clear existing
+    for _, child in ipairs(scrollFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    local players = Players:GetPlayers()
+    local yOffset = 0
+    
+    for _, player in ipairs(players) do
+        if player ~= LocalPlayer then
+            local playerBtn = Instance.new("TextButton")
+            playerBtn.Size = UDim2.new(1, 0, 0, 45)
+            playerBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+            playerBtn.BackgroundTransparency = 0
+            playerBtn.Text = "  👤 " .. player.Name
+            playerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            playerBtn.TextSize = 13
+            playerBtn.Font = Enum.Font.Gotham
+            playerBtn.TextXAlignment = Enum.TextXAlignment.Left
+            playerBtn.Parent = scrollFrame
+            
+            local btnCorner = Instance.new("UICorner")
+            btnCorner.CornerRadius = UDim.new(0, 6)
+            btnCorner.Parent = playerBtn
+            
+            -- Checkmark for selected
+            local checkmark = Instance.new("TextLabel")
+            checkmark.Size = UDim2.new(0, 35, 1, 0)
+            checkmark.Position = UDim2.new(1, -40, 0, 0)
+            checkmark.BackgroundTransparency = 1
+            checkmark.Text = "☐"
+            checkmark.TextColor3 = Color3.fromRGB(150, 150, 170)
+            checkmark.TextSize = 18
+            checkmark.Font = Enum.Font.GothamBold
+            checkmark.Parent = playerBtn
+            
+            -- Check if selected
+            if selectedTargets[player.Name] then
+                playerBtn.BackgroundColor3 = Color3.fromRGB(60, 50, 120)
+                checkmark.Text = "✓"
+                checkmark.TextColor3 = Color3.fromRGB(100, 200, 100)
+            end
+            
+            -- Click handler
+            playerBtn.MouseButton1Click:Connect(function()
+                if selectedTargets[player.Name] then
+                    selectedTargets[player.Name] = nil
+                    playerBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+                    checkmark.Text = "☐"
+                    checkmark.TextColor3 = Color3.fromRGB(150, 150, 170)
+                else
+                    selectedTargets[player.Name] = player
+                    playerBtn.BackgroundColor3 = Color3.fromRGB(60, 50, 120)
+                    checkmark.Text = "✓"
+                    checkmark.TextColor3 = Color3.fromRGB(100, 200, 100)
+                end
+                
+                -- Update count
+                local count = 0
+                for _ in pairs(selectedTargets) do count = count + 1 end
+                countLabel.Text = "Selected: " .. count .. " player" .. (count ~= 1 and "s" or "")
+            end)
+            
+            yOffset = yOffset + 50
+        end
+    end
+    
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(yOffset, scrollFrame.AbsoluteSize.Y))
+end
+
+-- Function to send carry request to a player
+local function sendCarryRequest(targetPlayer)
+    if not CarryRemote then
+        CarryRemote = getCarryRemote()
+        if not CarryRemote then
+            return false
+        end
+    end
+    
+    -- Args format: {70932517024004, carryName, targetPlayer, 0, 0.75, -1.5, 0, 0, 0}
+    local args = {70932517024004, CARRY_MESSAGE, targetPlayer, 0, 0.75, -1.5, 0, 0, 0}
+    
+    local success, err = pcall(function()
+        CarryRemote:FireServer(unpack(args))
+    end)
+    
+    return success
+end
+
+-- Toggle Carry Spam
+local function toggleCarrySpam()
+    carrySpamActive = not carrySpamActive
+    
+    if carrySpamActive then
+        if not CarryRemote then
+            CarryRemote = getCarryRemote()
+            if not CarryRemote then
+                toggleButton.Text = "❌ Remote Not Found!"
+                toggleButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+                carrySpamActive = false
+                task.wait(2)
+                toggleButton.Text = "📦 Carry Spam: OFF"
+                toggleButton.BackgroundColor3 = Color3.fromRGB(80, 60, 150)
+                return
+            end
+        end
+        
+        -- Check if any players are selected
+        local count = 0
+        for _ in pairs(selectedTargets) do count = count + 1 end
+        
+        if count == 0 then
+            toggleButton.Text = "⚠️ No Players Selected!"
+            toggleButton.BackgroundColor3 = Color3.fromRGB(150, 100, 50)
+            carrySpamActive = false
+            task.wait(1.5)
+            toggleButton.Text = "📦 Carry Spam: OFF"
+            toggleButton.BackgroundColor3 = Color3.fromRGB(80, 60, 150)
+            return
+        end
+        
+        toggleButton.Text = "📦 Carry Spam: ON"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 80)
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+        
+        -- Start carry spam loop
+        if carrySpamLoop then task.cancel(carrySpamLoop) end
+        carrySpamLoop = task.spawn(function()
+            while carrySpamActive do
+                local targets = {}
+                for _, targetPlayer in pairs(selectedTargets) do
+                    if targetPlayer and targetPlayer.Parent then
+                        table.insert(targets, targetPlayer)
+                    end
+                end
+                
+                -- Send carry request to each selected player
+                for _, target in ipairs(targets) do
+                    if carrySpamActive then
+                        sendCarryRequest(target)
+                    end
+                end
+                
+                -- Wait 0.8 seconds before next cycle
+                task.wait(0.8)
+            end
+        end)
+    else
+        toggleButton.Text = "📦 Carry Spam: OFF"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(80, 60, 150)
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        
+        if carrySpamLoop then
+            task.cancel(carrySpamLoop)
+            carrySpamLoop = nil
+        end
+    end
+end
+
+toggleButton.MouseButton1Click:Connect(toggleCarrySpam)
+
+-- Minimize functionality
+local minimized = false
+local originalSize = mainFrame.Size
+
+minimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        mainFrame.Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset, 0, 45)
+        contentFrame.Visible = false
+        minimizeBtn.Text = "+"
+    else
+        mainFrame.Size = originalSize
+        contentFrame.Visible = true
+        minimizeBtn.Text = "−"
+    end
+end)
+
+-- Refresh player list when players join/leave
+Players.PlayerAdded:Connect(function()
+    task.wait(0.5)
+    updatePlayerList()
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    task.wait(0.5)
+    -- Remove from selected if they left
+    if selectedTargets[player.Name] then
+        selectedTargets[player.Name] = nil
+        local count = 0
+        for _ in pairs(selectedTargets) do count = count + 1 end
+        countLabel.Text = "Selected: " .. count .. " player" .. (count ~= 1 and "s" or "")
+        
+        -- If carry spam is active and no targets left, turn it off
+        if carrySpamActive and count == 0 then
+            toggleCarrySpam()
+        end
+    end
+    updatePlayerList()
+end)
+
+-- Initial player list
+updatePlayerList()
+
+-- Select All / Deselect All buttons
+local selectAllBtn = Instance.new("TextButton")
+selectAllBtn.Size = UDim2.new(0.48, 0, 0, 30)
+selectAllBtn.Position = UDim2.new(0, 0, 1, -30)
+selectAllBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+selectAllBtn.Text = "✓ Select All"
+selectAllBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
+selectAllBtn.TextSize = 12
+selectAllBtn.Font = Enum.Font.Gotham
+selectAllBtn.Parent = contentFrame
+
+local selectAllCorner = Instance.new("UICorner")
+selectAllCorner.CornerRadius = UDim.new(0, 6)
+selectAllCorner.Parent = selectAllBtn
+
+local deselectAllBtn = Instance.new("TextButton")
+deselectAllBtn.Size = UDim2.new(0.48, 0, 0, 30)
+deselectAllBtn.Position = UDim2.new(0.52, 0, 1, -30)
+deselectAllBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+deselectAllBtn.Text = "✗ Deselect All"
+deselectAllBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
+deselectAllBtn.TextSize = 12
+deselectAllBtn.Font = Enum.Font.Gotham
+deselectAllBtn.Parent = contentFrame
+
+local deselectAllCorner = Instance.new("UICorner")
+deselectAllCorner.CornerRadius = UDim.new(0, 6)
+deselectAllCorner.Parent = deselectAllBtn
+
+selectAllBtn.MouseButton1Click:Connect(function()
+    local players = Players:GetPlayers()
+    for _, player in ipairs(players) do
+        if player ~= LocalPlayer then
+            selectedTargets[player.Name] = player
+        end
+    end
+    local count = 0
+    for _ in pairs(selectedTargets) do count = count + 1 end
+    countLabel.Text = "Selected: " .. count .. " player" .. (count ~= 1 and "s" or "")
+    updatePlayerList()
+end)
+
+deselectAllBtn.MouseButton1Click:Connect(function()
+    selectedTargets = {}
+    countLabel.Text = "Selected: 0 players"
+    updatePlayerList()
+    
+    -- If carry spam is active, turn it off
+    if carrySpamActive then
+        toggleCarrySpam()
+    end
+end)
+
+-- Success message
+print("✅ Multi-Target Carry Spam GUI Loaded!")
+print("📱 Carry Message: " .. CARRY_MESSAGE)
+print("⏱️ Spam Interval: 0.8 seconds")
+print("👥 Select players from the list, then toggle Carry Spam ON")
+print("🎮 GUI is draggable on Mobile - hold and drag the title bar")
